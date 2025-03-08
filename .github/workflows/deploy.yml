@@ -12,6 +12,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
       
+    - name: Debug Secrets
+      run: |
+        echo "EC2_HOST exists: ${{ secrets.EC2_HOST != '' }}"
+        echo "EC2_USERNAME exists: ${{ secrets.EC2_USERNAME != '' }}"
+        echo "SSH_PRIVATE_KEY exists: ${{ secrets.SSH_PRIVATE_KEY != '' }}"
+        echo "TMDB_API_KEY exists: ${{ secrets.TMDB_API_KEY != '' }}"
+        echo "APP_DOMAIN exists: ${{ secrets.APP_DOMAIN != '' }}"
+        
+        # Print length of secrets (safe way to verify they contain data)
+        echo "EC2_HOST length: $(echo -n '${{ secrets.EC2_HOST }}' | wc -c)"
+        echo "EC2_USERNAME length: $(echo -n '${{ secrets.EC2_USERNAME }}' | wc -c)"
+        echo "SSH_PRIVATE_KEY length: $(echo -n '${{ secrets.SSH_PRIVATE_KEY }}' | wc -c)"
+      
     - name: Setup SSH
       uses: webfactory/ssh-agent@v0.8.0
       with:
@@ -20,21 +33,73 @@ jobs:
     - name: Add EC2 host to known hosts
       run: |
         mkdir -p ~/.ssh
-        echo "Host is: ${{ secrets.EC2_HOST }}"
-        ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+        echo "Attempting to add host to known hosts..."
+        # Debug the EC2_HOST directly to see if it's empty or malformed
+        echo "First character of EC2_HOST: '${EC2_HOST:0:1}'"
+        echo "Last character of EC2_HOST: '${EC2_HOST: -1}'"
+        
+        # Use explicit IP address for testing if EC2_HOST is empty
+        if [ -z "$EC2_HOST" ]; then
+          echo "EC2_HOST is empty, using hardcoded IP for testing"
+          TEMP_HOST="54.159.144.181"
+        else
+          TEMP_HOST="$EC2_HOST"
+        fi
+        
+        echo "Using host: $TEMP_HOST for ssh-keyscan"
+        ssh-keyscan -H $TEMP_HOST >> ~/.ssh/known_hosts
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
     
     - name: Test SSH Connection
       run: |
-        echo "Testing SSH connection to ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}"
-        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'echo "Connection successful"'
+        # Use explicit IP address for testing if EC2_HOST is empty
+        if [ -z "$EC2_HOST" ]; then
+          echo "EC2_HOST is empty, using hardcoded IP for testing"
+          TEMP_HOST="54.159.144.181"
+        else
+          TEMP_HOST="$EC2_HOST"
+        fi
+        
+        # Use explicit username for testing if EC2_USERNAME is empty
+        if [ -z "$EC2_USERNAME" ]; then
+          echo "EC2_USERNAME is empty, using ec2-user for testing"
+          TEMP_USERNAME="ec2-user"
+        else
+          TEMP_USERNAME="$EC2_USERNAME"
+        fi
+        
+        echo "Testing SSH connection to $TEMP_USERNAME@$TEMP_HOST"
+        ssh -v -o StrictHostKeyChecking=no $TEMP_USERNAME@$TEMP_HOST 'echo "Connection successful"'
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         
     - name: Deploy to EC2
+      if: success()
       env:
         EC2_HOST: ${{ secrets.EC2_HOST }}
         EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
       run: |
-        ssh $EC2_USERNAME@$EC2_HOST '
+        # Use explicit IP address for testing if EC2_HOST is empty
+        if [ -z "$EC2_HOST" ]; then
+          echo "EC2_HOST is empty, using hardcoded IP for testing"
+          TEMP_HOST="54.159.144.181"
+        else
+          TEMP_HOST="$EC2_HOST"
+        fi
+        
+        # Use explicit username for testing if EC2_USERNAME is empty
+        if [ -z "$EC2_USERNAME" ]; then
+          echo "EC2_USERNAME is empty, using ec2-user for testing"
+          TEMP_USERNAME="ec2-user"
+        else
+          TEMP_USERNAME="$EC2_USERNAME"
+        fi
+        
+        echo "Deploying to $TEMP_USERNAME@$TEMP_HOST"
+        ssh $TEMP_USERNAME@$TEMP_HOST '
         # Create deploy directory if it doesn't exist
         mkdir -p ~/movie-app-server
         
