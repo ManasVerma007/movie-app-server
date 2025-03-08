@@ -12,19 +12,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
       
-    - name: Debug Secrets
-      run: |
-        echo "EC2_HOST exists: ${{ secrets.EC2_HOST != '' }}"
-        echo "EC2_USERNAME exists: ${{ secrets.EC2_USERNAME != '' }}"
-        echo "SSH_PRIVATE_KEY exists: ${{ secrets.SSH_PRIVATE_KEY != '' }}"
-        echo "TMDB_API_KEY exists: ${{ secrets.TMDB_API_KEY != '' }}"
-        echo "APP_DOMAIN exists: ${{ secrets.APP_DOMAIN != '' }}"
-        
-        # Print length of secrets (safe way to verify they contain data)
-        echo "EC2_HOST length: $(echo -n '${{ secrets.EC2_HOST }}' | wc -c)"
-        echo "EC2_USERNAME length: $(echo -n '${{ secrets.EC2_USERNAME }}' | wc -c)"
-        echo "SSH_PRIVATE_KEY length: $(echo -n '${{ secrets.SSH_PRIVATE_KEY }}' | wc -c)"
-      
     - name: Setup SSH
       uses: webfactory/ssh-agent@v0.8.0
       with:
@@ -33,118 +20,43 @@ jobs:
     - name: Add EC2 host to known hosts
       run: |
         mkdir -p ~/.ssh
-        echo "Attempting to add host to known hosts..."
-        # Debug the EC2_HOST directly to see if it's empty or malformed
-        echo "First character of EC2_HOST: '${EC2_HOST:0:1}'"
-        echo "Last character of EC2_HOST: '${EC2_HOST: -1}'"
-        
-        # Use explicit IP address for testing if EC2_HOST is empty
-        if [ -z "$EC2_HOST" ]; then
-          echo "EC2_HOST is empty, using hardcoded IP for testing"
-          TEMP_HOST="54.159.144.181"
-        else
-          TEMP_HOST="$EC2_HOST"
-        fi
-        
-        echo "Using host: $TEMP_HOST for ssh-keyscan"
-        ssh-keyscan -H $TEMP_HOST >> ~/.ssh/known_hosts
-      env:
-        EC2_HOST: ${{ secrets.EC2_HOST }}
+        ssh-keyscan -H 54.159.144.181 >> ~/.ssh/known_hosts
     
-    - name: Test SSH Connection
-      run: |
-        # Use explicit IP address for testing if EC2_HOST is empty
-        if [ -z "$EC2_HOST" ]; then
-          echo "EC2_HOST is empty, using hardcoded IP for testing"
-          TEMP_HOST="54.159.144.181"
-        else
-          TEMP_HOST="$EC2_HOST"
-        fi
-        
-        # Use explicit username for testing if EC2_USERNAME is empty
-        if [ -z "$EC2_USERNAME" ]; then
-          echo "EC2_USERNAME is empty, using ec2-user for testing"
-          TEMP_USERNAME="ec2-user"
-        else
-          TEMP_USERNAME="$EC2_USERNAME"
-        fi
-        
-        echo "Testing SSH connection to $TEMP_USERNAME@$TEMP_HOST"
-        ssh -v -o StrictHostKeyChecking=no $TEMP_USERNAME@$TEMP_HOST 'echo "Connection successful"'
-      env:
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        
     - name: Deploy to EC2
-      if: success()
-      env:
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
       run: |
-        # Use explicit IP address for testing if EC2_HOST is empty
-        if [ -z "$EC2_HOST" ]; then
-          echo "EC2_HOST is empty, using hardcoded IP for testing"
-          TEMP_HOST="54.159.144.181"
-        else
-          TEMP_HOST="$EC2_HOST"
-        fi
-        
-        # Use explicit username for testing if EC2_USERNAME is empty
-        if [ -z "$EC2_USERNAME" ]; then
-          echo "EC2_USERNAME is empty, using ec2-user for testing"
-          TEMP_USERNAME="ec2-user"
-        else
-          TEMP_USERNAME="$EC2_USERNAME"
-        fi
-        
-        echo "Deploying to $TEMP_USERNAME@$TEMP_HOST"
-        ssh $TEMP_USERNAME@$TEMP_HOST '
-        # Create deploy directory if it doesn't exist
+        echo "Deploying to ec2-user@54.159.144.181"
+        ssh ec2-user@54.159.144.181 "
         mkdir -p ~/movie-app-server
-        
-        # Navigate to project directory
         cd ~/movie-app-server
         
-        # Pull the latest changes from GitHub
         if [ -d .git ]; then
           git pull
         else
-          # If the directory is not a git repo, clone it
           rm -rf *
           git clone ${{ github.server_url }}/${{ github.repository }} .
         fi
         
-        # Create/update .env file
-        echo "PORT=5000" > .env
-        echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
-        echo "APP_DOMAIN=${{ secrets.APP_DOMAIN }}" >> .env
+        echo \"PORT=5000\" > .env
+        echo \"TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}\" >> .env
         
-        # Install dependencies
         npm install
         
-        # Install PM2 if not available
         if ! command -v pm2 &> /dev/null; then
-          echo "PM2 not found, installing..."
+          echo \"PM2 not found, installing...\"
           npm install -g pm2
         fi
         
-        # Restart the application with PM2
-        if pm2 list | grep -q "movie-app"; then
+        if pm2 list | grep -q \"movie-app\"; then
           pm2 restart movie-app
         else
-          pm2 start server.js --name "movie-app"
+          pm2 start server.js --name \"movie-app\"
         fi
         
-        # Save PM2 process list
         pm2 save
         
-        # Setup PM2 to start on system boot
-        # Capture the output but handle errors gracefully
-        PM2_STARTUP=$(pm2 startup | tail -n 1 || echo "echo \"PM2 startup failed\"")
-        echo "$PM2_STARTUP" > ~/pm2-startup-command.txt
-        chmod +x ~/pm2-startup-command.txt
-        ~/pm2-startup-command.txt || echo "Failed to run PM2 startup command"
+        # This part will try to configure PM2 to start on boot
+        # But we'll handle it with better error protection
+        pm2 startup | grep -q 'sudo' && echo \"PM2 startup requires sudo\" || pm2 startup
         
-        echo "Deployment completed successfully!"
-        '
+        echo \"Deployment completed successfully!\"
+        "
