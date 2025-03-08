@@ -140,7 +140,11 @@ jobs:
         pm2 save
         
         # Setup PM2 to start on system boot
-        pm2 startup | tail -n 1 > ~/pm2-startup-command.txt
+        # Capture the output but handle errors gracefully
+        PM2_STARTUP=$(pm2 startup | tail -n 1 || echo "echo \"PM2 startup failed\"")
+        echo "$PM2_STARTUP" > ~/pm2-startup-command.txt
         chmod +x ~/pm2-startup-command.txt
-        ~/pm2-startup-command.txt
+        ~/pm2-startup-command.txt || echo "Failed to run PM2 startup command"
+        
+        echo "Deployment completed successfully!"
         '
