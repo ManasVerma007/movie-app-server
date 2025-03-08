@@ -121,7 +121,13 @@ jobs:
         echo "APP_DOMAIN=${{ secrets.APP_DOMAIN }}" >> .env
         
         # Install dependencies
-        npm ci || npm install
+        npm install
+        
+        # Install PM2 if not available
+        if ! command -v pm2 &> /dev/null; then
+          echo "PM2 not found, installing..."
+          npm install -g pm2
+        fi
         
         # Restart the application with PM2
         if pm2 list | grep -q "movie-app"; then
@@ -132,4 +138,9 @@ jobs:
         
         # Save PM2 process list
         pm2 save
+        
+        # Setup PM2 to start on system boot
+        pm2 startup | tail -n 1 > ~/pm2-startup-command.txt
+        chmod +x ~/pm2-startup-command.txt
+        ~/pm2-startup-command.txt
         '
