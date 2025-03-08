@@ -22,7 +22,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
 });
 
-app.get('/workflow', (req, res) => {
+app.get('/workflows', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'workflows worked' });
 });
 

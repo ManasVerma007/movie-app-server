@@ -20,12 +20,12 @@ jobs:
     - name: Add EC2 host to known hosts
       run: |
         mkdir -p ~/.ssh
-        ssh-keyscan -H 54.159.144.181 >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
     
     - name: Deploy to EC2
       run: |
-        echo "Deploying to ec2-user@54.159.144.181"
-        ssh ec2-user@54.159.144.181 "
+        echo "Deploying to ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}"
+        ssh ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
         mkdir -p ~/movie-app-server
         cd ~/movie-app-server
         
@@ -53,10 +53,6 @@ jobs:
         fi
         
         pm2 save
-        
-        # This part will try to configure PM2 to start on boot
-        # But we'll handle it with better error protection
-        pm2 startup | grep -q 'sudo' && echo \"PM2 startup requires sudo\" || pm2 startup
         
         echo \"Deployment completed successfully!\"
         "
