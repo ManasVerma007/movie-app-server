@@ -22,6 +22,10 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
 });
 
+app.get('/workflow', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'workflow worked' });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
