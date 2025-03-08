@@ -20,7 +20,13 @@ jobs:
     - name: Add EC2 host to known hosts
       run: |
         mkdir -p ~/.ssh
+        echo "Host is: ${{ secrets.EC2_HOST }}"
         ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+    
+    - name: Test SSH Connection
+      run: |
+        echo "Testing SSH connection to ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}"
+        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'echo "Connection successful"'
         
     - name: Deploy to EC2
       env:
