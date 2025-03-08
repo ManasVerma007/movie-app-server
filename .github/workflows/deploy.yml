@@ -1,0 +1,64 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ] 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Add EC2 host to known hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: Deploy to EC2
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+      run: |
+        ssh $EC2_USERNAME@$EC2_HOST '
+        # Create deploy directory if it doesn't exist
+        mkdir -p ~/movie-app-server
+        
+        # Navigate to project directory
+        cd ~/movie-app-server
+        
+        # Pull the latest changes from GitHub
+        if [ -d .git ]; then
+          git pull
+        else
+          # If the directory is not a git repo, clone it
+          rm -rf *
+          git clone ${{ github.server_url }}/${{ github.repository }} .
+        fi
+        
+        # Create/update .env file
+        echo "PORT=5000" > .env
+        echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> .env
+        echo "APP_DOMAIN=${{ secrets.APP_DOMAIN }}" >> .env
+        
+        # Install dependencies
+        npm ci || npm install
+        
+        # Restart the application with PM2
+        if pm2 list | grep -q "movie-app"; then
+          pm2 restart movie-app
+        else
+          pm2 start server.js --name "movie-app"
+        fi
+        
+        # Save PM2 process list
+        pm2 save
+        '
